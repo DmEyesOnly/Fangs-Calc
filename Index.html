@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D&D Boss Tracker - Saga Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Dancing+Script:wght@700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Styles (Includes all previous ambiance styles) */
+        :root {
+            /* Bookshelf */
+            --shelf-color: #6f4e37; --shelf-highlight: #8b6b50; --shelf-shadow: #4a3020;
+            /* Book */
+            --book-spine-shadow: rgba(0,0,0,0.3); --book-text-color: gold;
+            --book-text-shadow: 0 0 2px black, 0 0 4px var(--book-text-color); /* Default gold glow */
+            --book-hover-glow-color: rgba(255, 255, 180, 0.7); /* Light yellow for book glow */
+            --book-hover-text-shadow: 1px 1px 2px rgba(0,0,0,0.8); /* Dark shadow for readability on hover */
+            /* Modal / Parchment */
+            --parchment-bg: #fdf5e6; --parchment-border: #d2b48c; --parchment-text: #4a2c2a;
+            --parchment-highlight: #fffaf0;
+            --focus-ring-color: rgba(210, 180, 140, 0.5); /* Tan focus ring */
+            /* Effects */
+            /* --flash-red & --flash-green replaced by pulse keyframes */
+            --page-flash-red: rgba(239, 68, 68, 0.15); /* Page flash red */
+            --page-flash-green: rgba(74, 222, 128, 0.15); /* Page flash green */
+            /* Context Menu */
+            --context-menu-bg: #f8fafc; --context-menu-border: #cbd5e1;
+            --context-menu-shadow: rgba(0,0,0,0.2); --context-menu-hover: #e2e8f0;
+            /* Storage Modal */
+            --storage-modal-bg: #e5e7eb;
+        }
+
+        /* --- Keyframes for Animations --- */
+        /* Book Hover Glow (User Provided) */
+        @keyframes bookPulseGlow {
+            0%, 100% {
+                box-shadow: -6px 8px 12px rgba(0, 0, 0, 0.3), 0 0 15px 5px rgba(255, 255, 180, 0.7);
+            }
+            50% {
+                box-shadow: -6px 8px 12px rgba(0, 0, 0, 0.3), 0 0 20px 8px rgba(255, 255, 180, 0.7);
+            }
+        }
+        /* Health Bar Pulse (User Provided) */
+        @keyframes pulseRed {
+            0%, 100% {
+                box-shadow: inset 0 0 0 0 rgba(239, 68, 68, 0.5);
+            }
+            50% {
+                box-shadow: inset 0 0 0 5px rgba(239, 68, 68, 0.5);
+            }
+        }
+        @keyframes pulseGreen {
+            0%, 100% {
+                box-shadow: inset 0 0 0 0 rgba(34, 197, 94, 0.5);
+            }
+            50% {
+                box-shadow: inset 0 0 0 5px rgba(34, 197, 94, 0.5);
+            }
+        }
+        /* Page Flash Animations (User Provided) */
+        @keyframes flashPageRed {
+             0%, 100% { background-color: transparent; }
+             50% { background-color: var(--page-flash-red); }
+        }
+        @keyframes flashPageGreen {
+             0%, 100% { background-color: transparent; }
+             50% { background-color: var(--page-flash-green); }
+        }
+        /* Modal Zoom Animations (User Provided) */
+        @keyframes zoomIn {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        @keyframes zoomOut {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+        }
+
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #374151; /* bg-gray-700 */
+            background-image: url('https://www.transparenttextures.com/patterns/dark-wood.png');
+            color: #d1d5db; /* Light gray text */
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+            padding: 2rem; box-sizing: border-box;
+        }
+        h1 {
+            font-family: 'Dancing Script', cursive; font-size: 3rem;
+            color: #f3f4f6; /* Lighter title color */
+            margin-bottom: 2.5rem; text-shadow: 1px 1px 5px rgba(0,0,0,0.5);
+        }
+        .bookshelf {
+            width: 100%; max-width: 900px; padding: 2rem 1rem; background-color: #a07a5c;
+            background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');
+            border: 6px solid var(--shelf-color); border-radius: 10px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.4); /* Deeper shadows */
+            display: flex; flex-direction: column; gap: 1.5rem; margin-bottom: 1rem;
+            /* position: relative; Removed as it was for moss */
+        }
+        /* Removed Moss/Vines CSS */
+
+        .shelf {
+            display: flex; align-items: flex-end; gap: 14px; padding: 15px 20px;
+            border-bottom: 15px solid var(--shelf-color);
+            border-top: 1px solid var(--shelf-highlight); /* Subtle top highlight */
+            background: linear-gradient(to bottom, var(--shelf-highlight), var(--shelf-color) 10px);
+            box-shadow: 0 6px 7px -3px var(--shelf-shadow); min-height: 220px;
+            flex-wrap: wrap; position: relative;
+        }
+        .shelf::before { /* Shelf grain */
+            content: ''; position: absolute; top: -10px; left: 0; right: 0; height: 10px;
+            background-image: linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 3px 3px; opacity: 0.3;
+        }
+
+        /* Individual Book Styling */
+        .book {
+            width: 45px; height: 190px;
+            border-radius: 4px 4px 0 0; cursor: pointer; position: relative;
+            box-shadow: -4px 0 6px var(--book-spine-shadow);
+            transition: transform 0.25s ease-out, box-shadow 0.35s ease-out;
+            display: flex; align-items: center; justify-content: center;
+            writing-mode: vertical-rl; text-orientation: mixed; transform-origin: bottom center;
+             background-image:
+                repeating-linear-gradient(to right, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 6px),
+                linear-gradient(to bottom right, rgba(255,255,255,0.15), rgba(0,0,0,0.15));
+        }
+        /* Updated Book Hover (User Provided) */
+        .book:hover {
+            transform: translateY(-8px) rotate(2deg); /* Added rotation */
+            animation: bookPulseGlow 1.5s ease-in-out infinite;
+        }
+        .book-title {
+            font-family: 'Dancing Script', cursive; font-size: 1.25rem; font-weight: 700;
+            color: var(--book-text-color); text-shadow: var(--book-text-shadow);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 100%;
+            padding: 0 5px; transform: rotate(180deg); line-height: 45px;
+        }
+        .book:hover .book-title {
+            text-shadow: var(--book-hover-text-shadow);
+        }
+        .saga-book { /* Optional saga book styling */ }
+
+        /* --- Context Menu Styling --- */
+        .context-menu { position: absolute; z-index: 100; background-color: var(--context-menu-bg); border: 1px solid var(--context-menu-border); border-radius: 6px; box-shadow: 3px 3px 10px var(--context-menu-shadow); padding: 0.5rem 0; min-width: 150px; display: none; }
+        .context-menu ul { list-style: none; margin: 0; padding: 0; }
+        .context-menu li { padding: 0.5rem 1rem; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background-color 0.15s ease-in-out; }
+        .context-menu li:hover { background-color: var(--context-menu-hover); }
+        .context-menu li.delete:hover { background-color: #fecaca; color: #b91c1c; }
+
+        /* --- Modal Styling --- */
+        .modal-overlay {
+            position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.6);
+            display: flex; justify-content: center; align-items: center;
+            padding: 1.5rem; z-index: 50;
+            display: none; opacity: 0;
+            transition: opacity 0.4s ease-out;
+        }
+         .modal-overlay.visible { opacity: 1; }
+        .calculator-book {
+            background-color: var(--parchment-bg);
+            background-image:
+                radial-gradient(circle at 20% 30%, rgba(188, 165, 132, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 75% 60%, rgba(188, 165, 132, 0.1) 0%, transparent 30%),
+                url('https://www.transparenttextures.com/patterns/old-paper.png');
+            border: 1px solid var(--parchment-border); border-radius: 10px;
+            width: 100%; max-width: 950px; height: 85vh; max-height: 750px;
+            display: flex;
+            /* Added inner shadow for depth */
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4), 0 0 0 10px #fff inset, inset 0 0 15px rgba(0,0,0,0.1);
+            position: relative; overflow: hidden;
+        }
+        /* Apply zoom animations (User Provided) */
+        .modal-overlay.visible .calculator-book {
+            animation: zoomIn 0.5s ease-out forwards;
+        }
+        .modal-overlay.closing .calculator-book {
+            animation: zoomOut 0.5s ease-in forwards;
+        }
+
+        .calculator-book::before, .calculator-book::after { /* Spine */ content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 25px; transform: translateX(-50%); z-index: 1; }
+        .calculator-book::before { background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0) 90%); }
+        .calculator-book::after { background: linear-gradient(to left, rgba(0,0,0,0.2), rgba(0,0,0,0) 90%); }
+
+        .book-page {
+            width: 50%; padding: 2.5rem; overflow-y: auto; position: relative;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+            transition: background-color 0.3s ease-out;
+        }
+
+        #left-page { border-right: 1px dashed rgba(107, 79, 58, 0.3); }
+        #right-page { border-left: 1px dashed rgba(107, 79, 58, 0.3); }
+
+        /* Page Flash Animation Classes */
+        #left-page.flash-page-red { animation: flashPageRed 0.5s ease-in-out; }
+        #left-page.flash-page-green { animation: flashPageGreen 0.5s ease-in-out; }
+
+
+        /* --- Storage Modal Specific Styling --- */
+        #storage-modal { background-color: var(--storage-modal-bg); border: 1px solid #9ca3af; border-radius: 8px; width: 100%; max-width: 600px; max-height: 70vh; padding: 1.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; }
+        #storage-modal h2 { font-family: 'Merriweather', serif; font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem; text-align: center; }
+        #stored-bosses-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex-grow: 1; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.5rem; }
+        #stored-bosses-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+        #stored-bosses-list li:last-child { border-bottom: none; }
+        #stored-bosses-list .stored-name { font-weight: 500; color: #111827; }
+        #stored-bosses-list .actions button { font-size: 0.75rem; padding: 0.3rem 0.6rem; margin-left: 0.5rem; }
+        .storage-modal-close-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.1); color: #4b5563; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 1.1rem; line-height: 1; cursor: pointer; z-index: 2; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s; }
+        .storage-modal-close-btn:hover { background: rgba(0,0,0,0.2); }
+
+         /* --- Confirmation Modal Styling --- */
+        #confirm-modal {
+             background-color: var(--parchment-bg);
+             background-image: url('https://www.transparenttextures.com/patterns/old-paper.png');
+             border: 1px solid var(--parchment-border);
+             color: var(--parchment-text);
+             padding: 2rem; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+             max-width: 450px; text-align: center;
+        }
+        #confirm-modal p { margin-bottom: 1.5rem; font-size: 1rem; line-height: 1.5; }
+        #confirm-modal .confirm-actions button { margin: 0 0.5rem; }
+
+
+        /* --- Modal Content Styling (Inputs, Buttons etc) --- */
+        .calculator-book h2, .calculator-book h3 {
+             font-family: 'Merriweather', serif; color: #4a2c2a; font-weight: 700;
+        }
+        /* Updated H4 divider */
+        .calculator-book h4 {
+            font-family: 'Merriweather', serif; color: #4a2c2a; font-weight: 700;
+            font-size: 1.1rem; margin-bottom: 0.75rem; padding-bottom: 0.4rem;
+            border-bottom: 3px double var(--parchment-border); /* Thematic divider */
+        }
+        .calculator-book h2 { font-size: 1.8rem; } .calculator-book h3 { font-size: 1.5rem; }
+
+        /* Updated Input Styling */
+        input[type="text"], input[type="number"], select {
+            font-family: 'Inter', sans-serif; background-color: var(--parchment-highlight);
+            border: none; /* Remove default border */
+            border-bottom: 2px solid var(--parchment-border); /* Add thematic bottom border */
+            border-radius: 0px; /* Remove radius for flat look */
+            padding: 0.6rem 0.2rem; /* Adjust padding */
+            color: var(--parchment-text); margin-bottom: 0.75rem;
+            width: 100%; box-sizing: border-box; transition: border-color 0.3s, box-shadow 0.3s;
+            box-shadow: none; /* Remove default inset shadow */
+            appearance: none; /* Remove default browser appearance */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        /* Style select dropdown arrow */
+        select {
+            background-image: linear-gradient(45deg, transparent 50%, var(--parchment-text) 50%), linear-gradient(135deg, var(--parchment-text) 50%, transparent 50%);
+            background-position: calc(100% - 15px) calc(1em + 2px), calc(100% - 10px) calc(1em + 2px);
+            background-size: 5px 5px, 5px 5px;
+            background-repeat: no-repeat;
+            padding-right: 2rem; /* Make space for arrow */
+        }
+
+        /* Updated Input Focus Styling */
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            outline: none;
+            border-bottom-color: #a07a5c; /* Darken border on focus */
+            box-shadow: 0 1px 0 0 #a07a5c; /* Add subtle line shadow */
+        }
+        label { margin-bottom: 0.3rem; display: block; font-weight: 500; font-size: 0.875rem; color: #5c3d2a; }
+        .modal-button {
+            font-family: 'Inter', sans-serif; background-color: #855a3c; color: #fdf5e6;
+            border: 1px solid #5c3d2a; padding: 0.7rem 1.1rem; border-radius: 6px; cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s, box-shadow 0.2s;
+            margin-top: 0.5rem; margin-right: 0.5rem; font-size: 0.875rem; font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.2); /* Added text shadow */
+        }
+        /* Updated Button Hover/Active (User Provided + Merged) */
+        .modal-button:hover {
+            background-color: #6f4e37;
+            transform: scale(1.05); /* Add user scale */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Use user shadow */
+        }
+        .modal-button:active {
+            background-color: #6f4e37; /* Keep hover color */
+            transform: scale(0.95); /* Use user scale */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Use user shadow */
+        }
+        .modal-button:focus-visible {
+             outline: none;
+             box-shadow: 0 0 0 3px var(--focus-ring-color), 0 2px 4px rgba(0, 0, 0, 0.15);
+         }
+        #save-book-btn { background-color: #22c55e; border-color: #15803d; }
+        #save-book-btn:hover { background-color: #16a34a; transform: scale(1.05); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); }
+        .delete-form-btn { background-color: #ef4444; border-color: #b91c1c; }
+        .delete-form-btn:hover { background-color: #dc2626; transform: scale(1.05); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); }
+        .modal-button.delete { background-color: #ef4444; border-color: #b91c1c; }
+        .modal-button.delete:hover { background-color: #dc2626; transform: scale(1.05); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); }
+
+        .modal-close-btn { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.15); color: var(--parchment-text); border: 1px solid rgba(0,0,0,0.1); border-radius: 50%; width: 32px; height: 32px; font-size: 1.3rem; line-height: 1; cursor: pointer; z-index: 2; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, transform 0.2s; }
+         .modal-close-btn:hover { background: rgba(0,0,0,0.25); transform: rotate(90deg); }
+        .form-entry { border: 1px dashed var(--parchment-border); padding: 0.75rem; margin-bottom: 0.75rem; border-radius: 6px; background-color: rgba(255, 250, 240, 0.6); }
+        .health-bar-container { width: 100%; background-color: #e5e7eb; border-radius: 6px; border: 1px solid #d1d5db; margin-top: 0.25rem; height: 24px; position: relative; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
+         /* Updated Health Bar Flash (User Provided) */
+         .health-bar-container.flash-red { animation: pulseRed 0.5s ease-in-out; }
+         .health-bar-container.flash-green { animation: pulseGreen 0.5s ease-in-out; }
+        .health-bar { background-color: #ef4444; background-image: linear-gradient(to bottom, #f87171, #ef4444); height: 100%; border-radius: 6px 0 0 6px; transition: width 0.5s ease-in-out; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 600; line-height: 1; position: relative; z-index: 1; white-space: nowrap; overflow: hidden; text-shadow: 1px 1px 1px rgba(0,0,0,0.3); }
+        .damage-log { margin-top: 1rem; max-height: 130px; overflow-y: auto; background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 0.75rem; font-size: 0.875rem; border-radius: 6px; color: #475569; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
+        .damage-log p { margin: 0 0 5px 0; padding: 5px 2px; border-bottom: 1px dotted #cbd5e1; }
+        .damage-log p:last-child { border-bottom: none; }
+        .book-page::-webkit-scrollbar { width: 8px; }
+        .book-page::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 4px; }
+        .book-page::-webkit-scrollbar-thumb { background-color: rgba(107, 79, 58, 0.4); border-radius: 4px; }
+        .book-page::-webkit-scrollbar-thumb:hover { background-color: rgba(107, 79, 58, 0.6); }
+
+        /* --- Buttons near bookshelf --- */
+        .actions-container { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; align-self: flex-start; margin-left: calc( (100% - 900px) / 2 + 1rem ); max-width: 900px; padding: 0 1rem; box-sizing: border-box; width: 100%; align-items: center; }
+        /* Default style */
+        .actions-container button, .actions-container label { font-family: 'Inter', sans-serif; background-color: #4b5563; color: #f3f4f6; border: 1px solid #374151; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s; font-size: 0.875rem; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        /* Apply similar hover/active effects to action buttons */
+        .actions-container button:hover, .actions-container label:hover {
+            background-color: #374151;
+            transform: scale(1.03); /* Slightly less pronounced */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+         .actions-container button:active, .actions-container label:active {
+            transform: scale(0.97);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+         /* Specific style for Add New Saga/Boss Button */
+         #add-new-saga-btn, #add-new-boss-book-btn { background-color: #466e46; border-color: #2e4b2e; }
+         #add-new-saga-btn:hover, #add-new-boss-book-btn:hover { background-color: #3a5a3a; transform: scale(1.03); box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+         /* Back button style */
+         #back-to-sagas-btn { background-color: #a0522d; border-color: #8b4513; }
+         #back-to-sagas-btn:hover { background-color: #8b4513; transform: scale(1.03); box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+         /* Focus style */
+         .actions-container button:focus-visible, .actions-container label:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(75, 85, 99, 0.5); }
+
+         /* --- New Saga Input Area --- */
+         #new-saga-input-area { display: none; margin-left: 0.75rem; padding: 0.5rem; background-color: rgba(255, 255, 255, 0.1); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2); align-items: center; gap: 0.5rem;}
+         #new-saga-input-area label { font-size: 0.8rem; color: #e5e7eb; margin-bottom: 0; margin-right: 0.25rem;}
+         #new-saga-input-area input { background-color: #f3f4f6; color: #1f2937; border: 1px solid #9ca3af; border-radius: 4px; padding: 0.3rem 0.6rem; font-size: 0.875rem; margin-right: 0.5rem; width: auto; display: inline-block; vertical-align: middle; margin-bottom: 0 !important; }
+         #new-saga-input-area input[type="number"] { width: 5rem; }
+         #new-saga-input-area button { padding: 0.3rem 0.8rem; font-size: 0.875rem; vertical-align: middle; background-color: #16a34a; border-color: #057a40; margin-top: 0 !important; }
+         #new-saga-input-area button:hover { background-color: #10883e; }
+
+        /* Hide boss shelf initially */
+        #boss-shelf-view { display: none; }
+
+    </style>
+</head>
+<body>
+    <h1>DM's Book of Bosses</h1>
+
+    <div id="saga-shelf-view">
+        <div id="saga-shelf" class="bookshelf">
+            <div class="shelf" id="saga-shelf-1">
+                 <p class="text-center text-gray-500 italic w-full">Loading Sagas...</p>
+            </div>
+        </div>
+        <div class="actions-container" id="saga-actions">
+            <button id="add-new-saga-btn">+ Add New Saga</button>
+            <div id="new-saga-input-area">
+                <label for="new-saga-name-input">Name:</label>
+                <input type="text" id="new-saga-name-input" placeholder="Saga Name...">
+                <label for="new-saga-book-count">Books:</label>
+                <input type="number" id="new-saga-book-count" min="0" value="0" placeholder="No.">
+                <button id="confirm-add-saga-btn">Confirm</button>
+            </div>
+            <button id="boss-storage-btn">Boss Storage</button>
+            <button id="export-btn">Export Data</button>
+            <label for="import-file" id="import-btn" class="modal-button cursor-pointer">Import Data</label>
+            <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+    </div>
+
+    <div id="boss-shelf-view">
+        <h2 id="boss-shelf-title" class="text-2xl font-semibold text-center mb-4 text-gray-200" style="font-family: 'Merriweather', serif;">Saga Name</h2>
+        <div id="boss-shelf-container" class="bookshelf">
+            <div class="shelf" id="boss-shelf-1">
+                 <p class="text-center text-gray-500 italic w-full">Loading Bosses...</p>
+            </div>
+        </div>
+        <div class="actions-container" id="boss-actions">
+             <button id="back-to-sagas-btn">&larr; Back to Sagas</button>
+            <button id="add-new-boss-book-btn">+ Add New Boss Book</button>
+            <button id="boss-storage-btn-saga-view">Boss Storage</button>
+        </div>
+    </div>
+
+    <div id="calculator-modal-overlay" class="modal-overlay">
+        <div id="calculator-book" class="calculator-book">
+            <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+            <div id="left-page" class="book-page space-y-5">
+                 <h2 id="calc-boss-name" class="text-center">Boss Name</h2>
+                 <div>
+                     <label class="block text-sm font-medium text-gray-700 mb-1">Health (Stage <span id="calc-current-stage">1</span>/<span id="calc-total-stages">1</span>)</label>
+                     <div id="calc-health-bar-container" class="health-bar-container">
+                         <div id="calc-health-bar" class="health-bar" style="width: 100%;">100 / 100</div>
+                     </div>
+                     <p class="text-xs text-gray-600 mt-1.5">Current: <span id="calc-current-hp">100</span> / Max: <span id="calc-max-hp">100</span></p>
+                 </div>
+                 <div class="grid grid-cols-2 gap-4 items-end">
+                     <div>
+                         <label for="calc-damage">Damage Dealt:</label>
+                         <input type="text" inputmode="decimal" id="calc-damage" placeholder="e.g., 1e6...">
+                     </div>
+                     <button id="apply-damage-btn" class="modal-button">Apply Damage</button>
+                 </div>
+                 <div class="grid grid-cols-2 gap-4 items-end">
+                     <div>
+                         <label for="calc-heal">Heal Percent (%):</label>
+                         <input type="text" inputmode="decimal" id="calc-heal" placeholder="e.g., 10 for 10%">
+                     </div>
+                    <button id="apply-heal-btn" class="modal-button">Apply Heal</button>
+                 </div>
+                 <div>
+                     <label class="block text-sm font-medium text-gray-700">Recent Activity:</label>
+                     <div id="calc-damage-log" class="damage-log mt-1">
+                         <p class="italic text-sm text-gray-500">No recent activity.</p>
+                     </div>
+                 </div>
+                 <button id="save-book-btn" class="modal-button w-full mt-4">Save Boss Configuration</button>
+            </div>
+            <div id="right-page" class="book-page space-y-5">
+                 <h3 class="text-center">Configuration</h3>
+                 <div>
+                     <h4>Base Stats</h4>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-3">
+                         <div> <label for="calc-base-name">Boss Name:</label> <input type="text" id="calc-base-name"> </div>
+                         <div> <label for="calc-base-hp">Base Max HP:</label> <input type="text" inputmode="decimal" id="calc-base-hp"> </div>
+                         <div> <label for="calc-base-ac">Base AC (Divisor):</label> <input type="text" inputmode="decimal" id="calc-base-ac" title="Base damage divisor"> </div>
+                         <div> <label for="calc-base-res">Base Resistance (%):</label> <input type="text" inputmode="decimal" id="calc-base-res" title="Base percentage reduction (applied after AC)"> </div>
+                     </div>
+                 </div>
+                 <div>
+                     <h4>Stages</h4>
+                     <div> <label for="calc-input-total-stages">Total Stages:</label> <input type="number" id="calc-input-total-stages" min="1" value="1" class="w-24"> </div>
+                 </div>
+                 <div>
+                     <h4>Forms</h4>
+                     <div class="mb-3"> <label for="calc-active-form">Active Form:</label> <select id="calc-active-form"> </select> </div>
+                     <div id="forms-list" class="space-y-3 mt-3 max-h-64 overflow-y-auto pr-2"> </div>
+                     <button id="add-form-btn" class="modal-button text-xs mt-2">+ Add Form</button>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="storage-modal-overlay" class="modal-overlay"> <div id="storage-modal">
+             <button class="storage-modal-close-btn">&times;</button>
+            <h2>Boss Storage</h2>
+            <ul id="stored-bosses-list">
+                <li class="italic text-gray-500 text-center">Storage is empty.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="confirm-modal-overlay" class="modal-overlay"> <div id="confirm-modal">
+            <p id="confirm-message">Confirmation message goes here.</p>
+            <div class="confirm-actions">
+                <button id="confirm-yes-btn" class="modal-button">Yes</button>
+                <button id="confirm-no-btn" class="modal-button delete">No</button>
+                <button id="confirm-cancel-btn" class="modal-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="context-menu" class="context-menu">
+        <ul></ul>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const sagaShelfView = document.getElementById('saga-shelf-view');
+        const sagaShelfContainer = document.getElementById('saga-shelf');
+        const sagaShelf1 = document.getElementById('saga-shelf-1');
+        const sagaActions = document.getElementById('saga-actions');
+        const addNewSagaBtn = document.getElementById('add-new-saga-btn');
+        const newSagaInputArea = document.getElementById('new-saga-input-area');
+        const newSagaNameInput = document.getElementById('new-saga-name-input');
+        const newSagaBookCountInput = document.getElementById('new-saga-book-count');
+        const confirmAddSagaBtn = document.getElementById('confirm-add-saga-btn');
+        const bossShelfView = document.getElementById('boss-shelf-view');
+        const bossShelfTitle = document.getElementById('boss-shelf-title');
+        const bossShelfContainer = document.getElementById('boss-shelf-container');
+        const bossShelf1 = document.getElementById('boss-shelf-1');
+        const bossActions = document.getElementById('boss-actions');
+        const backToSagasBtn = document.getElementById('back-to-sagas-btn');
+        const addNewBossBookBtn = document.getElementById('add-new-boss-book-btn');
+        const bossStorageBtn = document.getElementById('boss-storage-btn');
+        const bossStorageBtnSagaView = document.getElementById('boss-storage-btn-saga-view');
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
+        const importFileInput = document.getElementById('import-file');
+        // Modals & Overlays
+        const calculatorModalOverlay = document.getElementById('calculator-modal-overlay');
+        const calculatorBook = document.getElementById('calculator-book');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        const storageModalOverlay = document.getElementById('storage-modal-overlay');
+        const storageModal = document.getElementById('storage-modal');
+        const storedBossesList = document.getElementById('stored-bosses-list');
+        const storageModalCloseBtn = storageModal?.querySelector('.storage-modal-close-btn'); // Use optional chaining
+        const confirmModalOverlay = document.getElementById('confirm-modal-overlay');
+        const confirmModal = document.getElementById('confirm-modal');
+        const confirmMessage = document.getElementById('confirm-message');
+        const confirmYesBtn = document.getElementById('confirm-yes-btn');
+        const confirmNoBtn = document.getElementById('confirm-no-btn');
+        const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+        // Calculator Modal Elements
+        const calcLeftPage = document.getElementById('left-page'); // Get left page for flashing
+        const calcRightPage = document.getElementById('right-page'); // Get right page for animation reset
+        const calcBossName = document.getElementById('calc-boss-name');
+        const calcCurrentStage = document.getElementById('calc-current-stage');
+        const calcTotalStages = document.getElementById('calc-total-stages');
+        const calcHealthBarContainer = document.getElementById('calc-health-bar-container');
+        const calcHealthBar = document.getElementById('calc-health-bar');
+        const calcCurrentHp = document.getElementById('calc-current-hp');
+        const calcMaxHp = document.getElementById('calc-max-hp');
+        const calcDamageInput = document.getElementById('calc-damage');
+        const calcHealInput = document.getElementById('calc-heal');
+        const applyDamageBtn = document.getElementById('apply-damage-btn');
+        const applyHealBtn = document.getElementById('apply-heal-btn');
+        const calcDamageLog = document.getElementById('calc-damage-log');
+        const saveBookBtn = document.getElementById('save-book-btn');
+        // Calculator Configuration Elements
+        const calcBaseNameInput = document.getElementById('calc-base-name');
+        const calcBaseHpInput = document.getElementById('calc-base-hp');
+        const calcBaseAcInput = document.getElementById('calc-base-ac');
+        const calcBaseResInput = document.getElementById('calc-base-res');
+        const calcInputTotalStages = document.getElementById('calc-input-total-stages');
+        const calcActiveFormSelect = document.getElementById('calc-active-form');
+        const formsListContainer = document.getElementById('forms-list');
+        const addFormBtn = document.getElementById('add-form-btn');
+        // Context Menu
+        const contextMenu = document.getElementById('context-menu');
+
+
+        // --- State ---
+        let sagas = [];
+        let storedBosses = [];
+        let activeSagaId = null;
+        let activeBossId = null;
+        let contextMenuTarget = null;
+        const bookColors = ["#a0522d", "#5f4461", "#466e46", "#4a5568", "#b8860b", "#6a5acd", "#8b0000", "#2e8b57", "#8fbc8f", "#483d8b", "#b03060", "#008080"];
+        let nextColorIndex = 0;
+        const SCIENTIFIC_THRESHOLD = 1000000;
+        const MODAL_ANIMATION_DURATION = 500; // ms, match CSS close animation
+
+        // --- Utility Functions ---
+        function parseFloatInput(value) {
+            if (typeof value !== 'string') value = String(value);
+            if (/^[+-]?\d+(\.\d*)?e[+-]?\d+$/i.test(value.trim())) {
+                const parsed = Number(value.trim());
+                return !isNaN(parsed) && isFinite(parsed) ? parsed : 0;
+            }
+            const parsed = parseFloat(value.replace(/,/g, ''));
+            return !isNaN(parsed) && isFinite(parsed) ? parsed : 0;
+        }
+
+        function formatNumber(num) {
+            if (num === null || num === undefined || isNaN(num)) return '0';
+            return Math.abs(num) >= SCIENTIFIC_THRESHOLD
+                ? num.toExponential(2)
+                : num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        }
+
+        function getSagaById(id) { return sagas.find(s => s.id === id); }
+
+        function getBossById(bossId, sagaId = activeSagaId) {
+            if (!sagaId) { console.warn("getBossById called without sagaId"); return null; };
+            const saga = getSagaById(sagaId);
+            if (!saga) { console.warn(`Saga not found in getBossById: ${sagaId}`); return null; }
+            if (!Array.isArray(saga.bosses)) {
+                console.warn(`Saga ${sagaId} has invalid bosses property.`);
+                saga.bosses = [];
+                return null;
+            }
+            return saga.bosses.find(b => b.id === bossId);
+        }
+
+        function getStoredBossById(id) { return storedBosses.find(b => b.id === id); }
+
+        function getNextBookColor() {
+            const color = bookColors[nextColorIndex % bookColors.length];
+            nextColorIndex++;
+            return color;
+        }
+
+        function calculateDerivedStats(boss) {
+            if (!boss) { console.error("calculateDerivedStats called with null boss"); return { maxHp: 1, ac: 0, res: 0 }; }
+            if (!boss.forms || boss.forms.length === 0) {
+                console.warn("Boss has no forms array or it's empty, using base stats", boss);
+                 const baseMaxHp = boss.baseMaxHp ?? 1;
+                 const baseAc = boss.baseArmorClass ?? 0;
+                 const baseRes = boss.baseTrueResistance ?? 0;
+                 return { maxHp: Math.max(1, baseMaxHp), ac: Math.max(0, baseAc), res: Math.max(0, baseRes) };
+            }
+            const formIndex = (boss.activeFormIndex >= 0 && boss.activeFormIndex < boss.forms.length) ? boss.activeFormIndex : 0;
+            const form = boss.forms[formIndex] || { hpMultiplier: 1, acAdder: 0, resAdder: 0 };
+            const baseMaxHp = boss.baseMaxHp || 0;
+            const baseAc = boss.baseArmorClass || 0;
+            const baseRes = boss.baseTrueResistance || 0;
+            const hpMultiplier = form.hpMultiplier ?? 1;
+            const acAdder = form.acAdder ?? 0;
+            const resAdder = form.resAdder ?? 0;
+            const maxHp = baseMaxHp * hpMultiplier;
+            const ac = baseAc + acAdder;
+            const res = baseRes + resAdder;
+            return {
+                maxHp: Math.max(1, maxHp),
+                ac: Math.max(0, ac),
+                res: Math.max(0, res)
+            };
+        }
+
+        function getSagaOrBoss(id, type) {
+            if (type === 'saga') return getSagaById(id);
+            if (type === 'boss') return getBossById(id, activeSagaId);
+            return null;
+        }
+
+        // --- Initialization ---
+        function init() {
+            loadData();
+            renderSagaShelf();
+            addEventListeners();
+            showView('saga');
+        }
+
+        function addEventListeners() {
+            const safeAddListener = (element, event, handler, options) => {
+                if (element) {
+                    element.addEventListener(event, handler, options);
+                } else {
+                    // Reduced console noise
+                }
+            };
+
+            safeAddListener(modalCloseBtn, 'click', closeCalculatorModal);
+            safeAddListener(addNewSagaBtn, 'click', showAddSagaInput);
+            safeAddListener(confirmAddSagaBtn, 'click', confirmAddSaga);
+            safeAddListener(addNewBossBookBtn, 'click', createNewBoss);
+            safeAddListener(saveBookBtn, 'click', saveBossData);
+            safeAddListener(applyDamageBtn, 'click', applyDamage);
+            safeAddListener(applyHealBtn, 'click', applyHeal);
+            safeAddListener(addFormBtn, 'click', addFormEntry);
+            safeAddListener(calcActiveFormSelect, 'change', handleFormChange);
+            safeAddListener(bossStorageBtn, 'click', openStorageModal);
+            safeAddListener(bossStorageBtnSagaView, 'click', openStorageModal);
+            safeAddListener(storageModalCloseBtn, 'click', closeStorageModal);
+            safeAddListener(exportBtn, 'click', exportData);
+            safeAddListener(importBtn, 'click', () => importFileInput && importFileInput.click());
+            safeAddListener(importFileInput, 'change', importData);
+            safeAddListener(backToSagasBtn, 'click', goBackToSagas);
+            safeAddListener(sagaShelfContainer, 'contextmenu', showContextMenu);
+            safeAddListener(bossShelfContainer, 'contextmenu', showContextMenu);
+            safeAddListener(contextMenu, 'click', handleContextMenuAction);
+            safeAddListener(storedBossesList, 'click', handleStorageAction);
+            safeAddListener(confirmCancelBtn, 'click', closeConfirmModal);
+
+            // Close menus/modals on outside click (Refined Logic)
+             document.addEventListener('click', (event) => {
+                 // Only proceed if the click target is not null
+                 if (!event.target) return;
+
+                 // Check calculator modal - only close if visible and not currently animating closed
+                 if (calculatorModalOverlay && calculatorModalOverlay.classList.contains('visible') && !calculatorModalOverlay.classList.contains('closing')) {
+                     // Check if click is outside the book content AND not the close button
+                     if (!calculatorBook.contains(event.target) && event.target !== modalCloseBtn) {
+                          // Prevent closing if the click was on the element that opened it (propagation stopped earlier)
+                          // This check might be redundant now due to stopPropagation, but adds safety
+                          const clickedBook = event.target.closest('.book');
+                          const opensCalculator = clickedBook && clickedBook.dataset.type === 'boss';
+                          if (!opensCalculator) {
+                              closeCalculatorModal();
+                          }
+                     }
+                 }
+
+                 // Check storage modal - only close if visible
+                 if (storageModalOverlay && storageModalOverlay.classList.contains('visible')) {
+                     if (!storageModal.contains(event.target) && event.target !== storageModalCloseBtn) {
+                         closeStorageModal();
+                     }
+                 }
+
+                 // Check confirm modal - only close if visible
+                 if (confirmModalOverlay && confirmModalOverlay.classList.contains('visible')) {
+                      if (!confirmModal.contains(event.target)) {
+                           closeConfirmModal();
+                      }
+                 }
+
+                 // Check context menu
+                 if (contextMenu && contextMenu.style.display !== 'none') {
+                     if (!contextMenu.contains(event.target)) {
+                         hideContextMenu();
+                     }
+                 }
+
+                 // Check new saga input
+                 if (newSagaInputArea && newSagaInputArea.style.display !== 'none') {
+                      if (!newSagaInputArea.contains(event.target) && event.target !== addNewSagaBtn) {
+                          hideAddSagaInput();
+                      }
+                 }
+             });
+
+
+            [calcBaseHpInput, calcBaseAcInput, calcBaseResInput, calcInputTotalStages].forEach(input => {
+                safeAddListener(input, 'change', () => autoSaveCurrentBossData(false));
+            });
+
+            safeAddListener(calcBaseNameInput, 'input', () => {
+                const currentBoss = activeBossId ? getBossById(activeBossId) : window.newBossTemplate;
+                if (currentBoss && calcBossName) {
+                    calcBossName.textContent = calcBaseNameInput.value || 'Unnamed Boss';
+                    if (!activeBossId && window.newBossTemplate) {
+                        window.newBossTemplate.name = calcBaseNameInput.value || window.newBossTemplate.name;
+                    }
+                }
+            });
+
+            safeAddListener(formsListContainer, 'change', (event) => {
+                if (event.target.classList.contains('form-input')) {
+                    autoSaveCurrentBossData(false);
+                }
+            });
+        }
+
+        // --- View Management ---
+        function showView(viewType) {
+            if (sagaShelfView) sagaShelfView.style.display = viewType === 'saga' ? 'block' : 'none';
+            if (bossShelfView) bossShelfView.style.display = viewType === 'boss' ? 'block' : 'none';
+            closeCalculatorModal();
+            closeStorageModal();
+            closeConfirmModal();
+            hideContextMenu();
+            hideAddSagaInput();
+        }
+
+        // --- Local Storage ---
+        function saveDataToStorage() {
+            try {
+                const dataToSave = { sagas: sagas, storedBosses: storedBosses };
+                localStorage.setItem('dndBossData_v3', JSON.stringify(dataToSave));
+                console.log("Data v3 saved to localStorage.");
+            } catch (e) {
+                console.error("Error saving data v3 to localStorage:", e);
+            }
+        }
+
+        function loadData() {
+            const savedData = localStorage.getItem('dndBossData_v3');
+            if (savedData) {
+                try {
+                    const parsedData = JSON.parse(savedData);
+                    sagas = Array.isArray(parsedData.sagas) ? parsedData.sagas : [];
+                    sagas.forEach(saga => {
+                        saga.id = saga.id || `saga_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                        saga.name = saga.name || 'Unnamed Saga';
+                        saga.color = saga.color || getNextBookColor();
+                        saga.bosses = Array.isArray(saga.bosses) ? saga.bosses : [];
+                        saga.bosses.forEach(boss => migrateBossData(boss));
+                    });
+                    storedBosses = Array.isArray(parsedData.storedBosses) ? parsedData.storedBosses : [];
+                    storedBosses.forEach(boss => migrateBossData(boss));
+                    nextColorIndex = sagas.length + storedBosses.length;
+                } catch (e) {
+                    console.error("Error parsing saved data v3:", e);
+                    sagas = []; storedBosses = [];
+                    localStorage.removeItem('dndBossData_v3');
+                    alert("Error loading saved data. Data might be corrupted and has been reset.");
+                }
+            } else {
+                sagas = []; storedBosses = [];
+            }
+        }
+
+        function migrateBossData(boss) {
+            boss.id = boss.id || `boss_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+            boss.color = boss.color || getNextBookColor();
+            boss.name = boss.name || 'Unnamed Boss';
+            boss.baseMaxHp = boss.baseMaxHp ?? (boss.maxHp || 100);
+            boss.currentHp = boss.currentHp ?? boss.baseMaxHp;
+            boss.baseArmorClass = boss.baseArmorClass ?? (boss.armorClass || 10);
+            boss.baseTrueResistance = boss.baseTrueResistance ?? (boss.trueResistance || 0);
+            boss.totalStages = boss.totalStages || 1;
+            boss.currentStage = boss.currentStage || 1;
+            if (!Array.isArray(boss.forms) || boss.forms.length === 0) {
+                boss.forms = [{ name: 'Default', hpMultiplier: 1, acAdder: 0, resAdder: 0 }];
+            } else {
+                boss.forms.forEach(form => {
+                    form.name = form.name || 'Unnamed Form';
+                    form.hpMultiplier = form.hpMultiplier ?? 1;
+                    form.acAdder = form.acAdder ?? 0;
+                    form.resAdder = form.resAdder ?? 0;
+                });
+            }
+            boss.activeFormIndex = (boss.activeFormIndex >= 0 && boss.activeFormIndex < boss.forms.length) ? boss.activeFormIndex : 0;
+            boss.damageLog = Array.isArray(boss.damageLog) ? boss.damageLog : [];
+            delete boss.maxHp; delete boss.armorClass; delete boss.trueResistance;
+            return boss;
+        }
+
+        // --- Shelf Rendering ---
+        function renderSagaShelf() {
+            if (!sagaShelf1) return;
+            sagaShelf1.innerHTML = '';
+            if (sagas.length === 0) {
+                sagaShelf1.innerHTML = '<p class="text-center text-gray-500 italic w-full">No sagas created yet. Add a new saga!</p>';
+            } else {
+                sagas.forEach(saga => {
+                    const book = document.createElement('div');
+                    book.className = 'book saga-book';
+                    book.style.backgroundColor = saga.color || getNextBookColor();
+                    book.style.backgroundImage = `repeating-linear-gradient(to right, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 6px), linear-gradient(to bottom right, rgba(255,255,255,0.15), rgba(0,0,0,0.15))`;
+                    book.dataset.id = saga.id;
+                    book.dataset.type = 'saga';
+                    const tilt = Math.random() * 1.5 - 0.75;
+                    book.style.transform = `rotate(${tilt}deg)`;
+                    const title = document.createElement('span');
+                    title.className = 'book-title';
+                    title.textContent = saga.name || 'Untitled Saga';
+                    book.appendChild(title);
+                    // *** ADDED event.stopPropagation() ***
+                    book.addEventListener('click', (event) => {
+                        event.stopPropagation(); // Prevent click bubbling to document listener
+                        openBossShelf(saga.id);
+                    });
+                    sagaShelf1.appendChild(book);
+                });
+            }
+        }
+
+        function renderBossShelf(sagaId) {
+            const saga = getSagaById(sagaId);
+            if (!saga || !bossShelfTitle || !bossShelf1) return;
+            bossShelfTitle.textContent = saga.name || 'Unnamed Saga';
+            bossShelf1.innerHTML = '';
+             if (!Array.isArray(saga.bosses)) {
+                 console.warn(`Saga ${sagaId} has invalid bosses property during render.`);
+                 saga.bosses = [];
+             }
+            if (saga.bosses.length === 0) {
+                bossShelf1.innerHTML = '<p class="text-center text-gray-500 italic w-full">This saga has no bosses yet. Add a new boss book!</p>';
+            } else {
+                saga.bosses.forEach(boss => {
+                    const book = document.createElement('div');
+                    book.className = 'book';
+                    book.style.backgroundColor = boss.color || getNextBookColor();
+                    book.style.backgroundImage = `repeating-linear-gradient(to right, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 6px), linear-gradient(to bottom right, rgba(255,255,255,0.15), rgba(0,0,0,0.15))`;
+                    book.dataset.id = boss.id;
+                    book.dataset.type = 'boss';
+                    const tilt = Math.random() * 1.5 - 0.75;
+                    book.style.transform = `rotate(${tilt}deg)`;
+                    const title = document.createElement('span');
+                    title.className = 'book-title';
+                    title.textContent = boss.name || 'Untitled Boss';
+                    book.appendChild(title);
+                     // *** ADDED event.stopPropagation() ***
+                    book.addEventListener('click', (event) => {
+                        event.stopPropagation(); // Prevent click bubbling to document listener
+                        openBossCalculator(boss.id, saga.id);
+                    });
+                    bossShelf1.appendChild(book);
+                });
+            }
+        }
+
+        // --- Navigation ---
+        function openBossShelf(sagaId) { activeSagaId = sagaId; renderBossShelf(sagaId); showView('boss'); }
+        function goBackToSagas() { activeSagaId = null; showView('saga'); }
+
+         // --- Context Menu Logic ---
+         function showContextMenu(event) {
+             event.preventDefault();
+             const clickedBook = event.target.closest('.book');
+             if (!clickedBook || !contextMenu) { hideContextMenu(); return; }
+             const id = clickedBook.dataset.id;
+             const type = clickedBook.dataset.type;
+             if (!id || !type) { hideContextMenu(); return; }
+             contextMenuTarget = { type, id };
+             const ul = contextMenu.querySelector('ul');
+             if (!ul) return;
+             ul.innerHTML = '';
+             if (type === 'saga') {
+                 ul.innerHTML = `<li data-action="delete-saga" class="delete">Delete Saga</li>`;
+             } else if (type === 'boss') {
+                 ul.innerHTML = `<li data-action="storage">Send to Storage</li><li data-action="delete-boss" class="delete">Delete Book</li>`;
+             } else { hideContextMenu(); return; }
+             const scrollX = window.scrollX || window.pageXOffset;
+             const scrollY = window.scrollY || window.pageYOffset;
+             contextMenu.style.top = `${event.pageY - scrollY}px`;
+             contextMenu.style.left = `${event.pageX - scrollX}px`;
+             contextMenu.style.display = 'block';
+         }
+         function hideContextMenu() { if (contextMenu && contextMenu.style.display === 'block') { contextMenu.style.display = 'none'; contextMenuTarget = null; } }
+         function handleContextMenuAction(event) {
+             if (!contextMenuTarget || !event.target.matches('li[data-action]')) return;
+             const action = event.target.dataset.action;
+             const { type, id } = contextMenuTarget;
+             if (type === 'saga') { if (action === 'delete-saga') promptDeleteSaga(id); }
+             else if (type === 'boss') {
+                 if (action === 'storage') moveToStorage(id, activeSagaId);
+                 else if (action === 'delete-boss') deleteBook(id, activeSagaId);
+             }
+             hideContextMenu();
+         }
+
+         // --- Saga/Boss Management Actions ---
+         function showAddSagaInput() {
+             if (newSagaInputArea && newSagaNameInput && newSagaBookCountInput) {
+                 newSagaInputArea.style.display = 'inline-flex';
+                 newSagaNameInput.value = `Saga ${sagas.length + 1}`;
+                 newSagaBookCountInput.value = '0';
+                 newSagaNameInput.focus(); newSagaNameInput.select();
+             } else { console.error("New saga input elements not found!"); }
+         }
+         function hideAddSagaInput() { if (newSagaInputArea && newSagaNameInput && newSagaBookCountInput) { newSagaInputArea.style.display = 'none'; newSagaNameInput.value = ''; newSagaBookCountInput.value = '0'; } }
+         function confirmAddSaga() {
+             if (!newSagaNameInput || !newSagaBookCountInput) { console.error("Cannot confirm saga: input elements missing."); return; }
+             const sagaName = newSagaNameInput.value.trim();
+             const bookCount = parseInt(newSagaBookCountInput.value, 10) || 0;
+             if (sagaName === '') { alert("Saga name cannot be empty."); newSagaNameInput.focus(); return; }
+             const newSaga = { id: `saga_${Date.now()}_${Math.random().toString(16).slice(2)}`, name: sagaName, color: getNextBookColor(), bosses: [] };
+             for (let i = 0; i < bookCount; i++) {
+                 const placeholderBoss = { id: `boss_${Date.now()}_${Math.random().toString(16).slice(2)}_${i}`, name: `Placeholder Boss ${i + 1}`, color: getNextBookColor(), baseMaxHp: 100, currentHp: 100, baseArmorClass: 10, baseTrueResistance: 0, totalStages: 1, currentStage: 1, forms: [{ name: 'Default', hpMultiplier: 1, acAdder: 0, resAdder: 0 }], activeFormIndex: 0, damageLog: [] };
+                 newSaga.bosses.push(migrateBossData(placeholderBoss));
+             }
+             sagas.push(newSaga); saveDataToStorage(); renderSagaShelf(); hideAddSagaInput();
+         }
+         function promptDeleteSaga(sagaId) {
+             const saga = getSagaById(sagaId); if (!saga) return;
+             const bossCount = Array.isArray(saga.bosses) ? saga.bosses.length : 0;
+             const bossPlural = bossCount !== 1 ? 'es' : '';
+             confirmMessage.textContent = `Delete Saga "${saga.name}"? Put ${bossCount} boss${bossPlural} into storage first?`;
+             confirmCancelBtn.style.display = 'inline-block';
+             confirmYesBtn.textContent = "Yes, Store & Delete"; confirmYesBtn.classList.remove('delete');
+             confirmNoBtn.textContent = "No, Delete All"; confirmNoBtn.classList.add('delete');
+             confirmYesBtn.onclick = () => { moveAllSagaBossesToStorage(sagaId); deleteSagaCore(sagaId); closeConfirmModal(); };
+             confirmNoBtn.onclick = () => { if (confirm(`This will permanently delete the saga "${saga.name}" AND all ${bossCount} boss${bossPlural} within it. This cannot be undone. Are you absolutely sure?`)) { deleteSagaCore(sagaId); } closeConfirmModal(); };
+             openConfirmModal();
+         }
+         function moveAllSagaBossesToStorage(sagaId) {
+             const saga = getSagaById(sagaId);
+             if (!saga || !Array.isArray(saga.bosses) || saga.bosses.length === 0) return;
+             storedBosses.push(...saga.bosses); saga.bosses = [];
+         }
+         function deleteSagaCore(sagaId) {
+             const index = sagas.findIndex(s => s.id === sagaId);
+             if (index > -1) { sagas.splice(index, 1); saveDataToStorage(); renderSagaShelf(); }
+             else { console.error("Saga not found for core deletion:", sagaId); }
+         }
+        function deleteBook(bossId, source) {
+            let sourceArray, sourceName, boss, sagaIdForRender = null;
+            if (source === storedBosses) { sourceArray = storedBosses; sourceName = "storage"; boss = getStoredBossById(bossId); }
+            else if (typeof source === 'string') {
+                const saga = getSagaById(source); if (!saga) { alert("Error: Could not find the saga this boss belongs to."); return; }
+                 if (!Array.isArray(saga.bosses)) { alert("Error: Saga data seems corrupted."); saga.bosses = []; return; }
+                sourceArray = saga.bosses; sourceName = `saga "${saga.name}"`; boss = getBossById(bossId, source); sagaIdForRender = source;
+            } else { alert("An internal error occurred while trying to delete the book."); return; }
+            if (!boss) { alert(`Error: Could not find the boss in ${sourceName}.`); return; }
+            const bossName = boss.name || 'this boss';
+            confirmMessage.textContent = `Permanently delete "${bossName}" from ${sourceName}? This cannot be undone.`;
+            confirmCancelBtn.style.display = 'none'; confirmYesBtn.textContent = "Yes, Delete"; confirmYesBtn.classList.add('delete');
+            confirmNoBtn.textContent = "No"; confirmNoBtn.classList.remove('delete');
+            confirmYesBtn.onclick = () => {
+                const index = sourceArray.findIndex(b => b.id === bossId);
+                if (index > -1) {
+                    sourceArray.splice(index, 1); saveDataToStorage();
+                    if (source === storedBosses) { renderStorageModal(); }
+                    else if (sagaIdForRender) { renderBossShelf(sagaIdForRender); }
+                } else { alert("Error: Could not find the boss to delete after confirmation."); }
+                closeConfirmModal();
+            };
+            confirmNoBtn.onclick = () => { closeConfirmModal(); };
+            openConfirmModal();
+        }
+         function moveToStorage(bossId, sagaId = activeSagaId) {
+             if (!sagaId) { alert("Error: Could not determine which saga the boss belongs to."); return; }
+             const saga = getSagaById(sagaId); if (!saga) { alert("Error: Could not find the saga to move the boss from."); return; }
+             if (!Array.isArray(saga.bosses)) { alert("Error: Saga data seems corrupted."); saga.bosses = []; return; }
+             const index = saga.bosses.findIndex(b => b.id === bossId);
+             if (index > -1) { const [bossToMove] = saga.bosses.splice(index, 1); storedBosses.push(bossToMove); saveDataToStorage(); renderBossShelf(sagaId); renderStorageModal(); }
+             else { alert("Error: Could not find the specified boss on the shelf."); }
+         }
+         function restoreFromStorage(bossId) {
+             if (!activeSagaId) { alert("Please open a Saga first to restore the boss into."); return; }
+             const saga = getSagaById(activeSagaId); if (!saga) { alert("Could not find the currently active saga to restore to."); return; }
+             if (!Array.isArray(saga.bosses)) { alert("Error: Active saga data seems corrupted."); saga.bosses = []; }
+             const index = storedBosses.findIndex(b => b.id === bossId);
+             if (index > -1) { const [bossToRestore] = storedBosses.splice(index, 1); saga.bosses.push(bossToRestore); saveDataToStorage(); renderBossShelf(activeSagaId); renderStorageModal(); }
+             else { alert("Error: Could not find the specified boss in storage."); }
+         }
+
+        // --- Boss Storage Modal Logic ---
+        function openStorageModal() {
+            if (!storageModalOverlay) return;
+            renderStorageModal();
+            storageModalOverlay.style.display = 'flex';
+            requestAnimationFrame(() => { storageModalOverlay.classList.add('visible'); });
+        }
+        function closeStorageModal() {
+            // Refined: Check if visible before attempting to close
+            if (!storageModalOverlay || !storageModalOverlay.classList.contains('visible')) return;
+            storageModalOverlay.classList.remove('visible');
+            setTimeout(() => { storageModalOverlay.style.display = 'none'; }, 300);
+        }
+        function renderStorageModal() {
+            if (!storedBossesList) return;
+            storedBossesList.innerHTML = '';
+            if (storedBosses.length === 0) { storedBossesList.innerHTML = '<li class="italic text-gray-500 text-center">Storage is empty.</li>'; }
+            else {
+                storedBosses.forEach(boss => {
+                    const li = document.createElement('li');
+                    const restoreButtonHtml = activeSagaId ? `<button class="modal-button restore-btn" data-id="${boss.id}">Restore to Current Saga</button>` : `<button class="modal-button restore-btn" data-id="${boss.id}" disabled title="Open a Saga view first to restore">Restore</button>`;
+                    li.innerHTML = `<span class="stored-name">${boss.name || 'Untitled'}</span> <span class="actions">${restoreButtonHtml} <button class="modal-button delete-btn delete" data-id="${boss.id}">Delete</button></span>`;
+                    storedBossesList.appendChild(li);
+                });
+            }
+        }
+         function handleStorageAction(event) {
+             const targetButton = event.target.closest('button');
+             if (!targetButton || targetButton.disabled) return;
+             const bossId = targetButton.dataset.id; if (!bossId) return;
+             if (targetButton.classList.contains('restore-btn')) { restoreFromStorage(bossId); }
+             else if (targetButton.classList.contains('delete-btn')) { deleteBook(bossId, storedBosses); }
+         }
+
+         // --- Confirmation Modal Logic ---
+         function openConfirmModal() {
+             if (!confirmModalOverlay) return;
+             confirmModalOverlay.style.display = 'flex';
+             requestAnimationFrame(() => { confirmModalOverlay.classList.add('visible'); });
+         }
+         function closeConfirmModal() {
+             // Refined: Check if visible before attempting to close
+            if (!confirmModalOverlay || !confirmModalOverlay.classList.contains('visible')) return;
+             confirmModalOverlay.classList.remove('visible');
+             setTimeout(() => {
+                 confirmModalOverlay.style.display = 'none';
+                 if (confirmYesBtn) { confirmYesBtn.textContent = "Yes"; confirmYesBtn.classList.remove('delete'); confirmYesBtn.onclick = null; }
+                 if (confirmNoBtn) { confirmNoBtn.textContent = "No"; confirmNoBtn.classList.remove('delete'); confirmNoBtn.onclick = null; }
+                 if (confirmCancelBtn) { confirmCancelBtn.style.display = 'inline-block'; }
+             }, 300);
+         }
+
+         // --- Boss Creation/Saving ---
+         function createNewBoss() {
+             if (!activeSagaId) { alert("Please open a Saga first before adding a new boss book."); return; }
+             const newBoss = { id: `boss_${Date.now()}_${Math.random().toString(16).slice(2)}`, name: `New Boss ${getSagaById(activeSagaId)?.bosses?.length + 1 || 1}`, color: getNextBookColor(), baseMaxHp: 100, currentHp: 100, baseArmorClass: 10, baseTrueResistance: 0, totalStages: 1, currentStage: 1, forms: [{ name: 'Default', hpMultiplier: 1, acAdder: 0, resAdder: 0 }], activeFormIndex: 0, damageLog: [] };
+             openBossCalculator(null, activeSagaId, newBoss);
+         }
+
+         function saveBossData() {
+             let bossToSave;
+             let isNewBoss = false;
+             let targetSagaId;
+             let targetBossId = activeBossId;
+
+             // Determine context
+             if (activeBossId) {
+                 targetSagaId = activeSagaId;
+             } else if (window.newBossTemplate && window.newBossTemplateSagaId) {
+                 targetSagaId = window.newBossTemplateSagaId;
+                 isNewBoss = true;
+             } else {
+                 // Refined Error Logging
+                 alert("Error: Cannot save. Application lost track of which boss is being edited.");
+                 console.error("Save failed: No context (activeBossId is missing/falsy AND window.newBossTemplate or window.newBossTemplateSagaId is missing/falsy)");
+                 console.error(`Current state: activeBossId=${activeBossId}, window.newBossTemplate exists? ${!!window.newBossTemplate}, window.newBossTemplateSagaId=${window.newBossTemplateSagaId}`);
+                 return;
+             }
+
+             const targetSaga = getSagaById(targetSagaId);
+             if (!targetSaga) { alert(`Error: Cannot find Saga (ID: ${targetSagaId}) to save boss into.`); console.error(`Save failed: Target saga ${targetSagaId} not found.`); return; }
+             if (!Array.isArray(targetSaga.bosses)) { alert("Error: Target saga data seems corrupted."); targetSaga.bosses = []; }
+
+             // Get the boss object
+             if (isNewBoss) {
+                 bossToSave = { ...window.newBossTemplate }; // Shallow copy template
+                 targetBossId = bossToSave.id;
+             } else {
+                 bossToSave = getBossById(targetBossId, targetSagaId);
+                 if (!bossToSave) { alert("Error: Could not find the existing boss data to save."); console.error(`Save failed: Existing boss ${targetBossId} not found in saga ${targetSagaId}.`); return; }
+             }
+
+             // --- Update boss properties from form inputs ---
+             bossToSave.name = calcBaseNameInput.value.trim() || 'Untitled Boss';
+             bossToSave.baseMaxHp = Math.max(1, parseFloatInput(calcBaseHpInput.value));
+             bossToSave.baseArmorClass = Math.max(0, parseFloatInput(calcBaseAcInput.value));
+             bossToSave.baseTrueResistance = Math.max(0, parseFloatInput(calcBaseResInput.value));
+             bossToSave.totalStages = Math.max(1, parseInt(calcInputTotalStages.value, 10) || 1);
+             bossToSave.activeFormIndex = Math.max(0, calcActiveFormSelect.selectedIndex);
+             bossToSave.forms = [];
+             const formEntries = formsListContainer.querySelectorAll('.form-entry');
+             formEntries.forEach((entry, index) => {
+                 const nameInput = entry.querySelector('.form-name'); const hpInput = entry.querySelector('.form-hp');
+                 const acInput = entry.querySelector('.form-ac'); const resInput = entry.querySelector('.form-res');
+                 if (nameInput && hpInput && acInput && resInput) {
+                     bossToSave.forms.push({ name: nameInput.value.trim() || `Form ${index + 1}`, hpMultiplier: Math.max(0.01, parseFloatInput(hpInput.value)), acAdder: parseFloatInput(acInput.value), resAdder: parseFloatInput(resInput.value) });
+                 } else { console.warn(`Skipping form entry ${index} due to missing input elements.`); }
+             });
+             if (bossToSave.forms.length === 0) { bossToSave.forms.push({ name: 'Default', hpMultiplier: 1, acAdder: 0, resAdder: 0 }); bossToSave.activeFormIndex = 0; }
+             bossToSave.activeFormIndex = Math.min(bossToSave.activeFormIndex, bossToSave.forms.length - 1);
+
+             // --- Finalize and Save ---
+             const derivedStats = calculateDerivedStats(bossToSave);
+             bossToSave.currentHp = Math.min(bossToSave.currentHp, derivedStats.maxHp);
+             bossToSave.currentStage = Math.min(bossToSave.currentStage, bossToSave.totalStages);
+
+             if (isNewBoss) {
+                 targetSaga.bosses.push(bossToSave);
+                 // Clear the temporary new boss template
+                 delete window.newBossTemplate;
+                 delete window.newBossTemplateSagaId;
+             }
+
+             saveDataToStorage();
+             renderBossShelf(targetSagaId);
+
+             // Keep the modal open, update state
+             activeBossId = targetBossId; // Set the active ID to the saved boss (new or existing)
+             activeSagaId = targetSagaId;
+             renderCalculator(bossToSave); // Re-render calculator with the saved data
+
+             alert(`"${bossToSave.name}" configuration saved!`);
+         }
+
+         function autoSaveCurrentBossData(writeToStorage = false) {
+             let boss, sagaId;
+             if (activeBossId && activeSagaId) { sagaId = activeSagaId; boss = getBossById(activeBossId, sagaId); }
+             else if (window.newBossTemplate && window.newBossTemplateSagaId) { sagaId = window.newBossTemplateSagaId; boss = window.newBossTemplate; }
+             else { return; }
+             if (!boss) return;
+             boss.baseMaxHp = Math.max(1, parseFloatInput(calcBaseHpInput.value));
+             boss.baseArmorClass = Math.max(0, parseFloatInput(calcBaseAcInput.value));
+             boss.baseTrueResistance = Math.max(0, parseFloatInput(calcBaseResInput.value));
+             boss.totalStages = Math.max(1, parseInt(calcInputTotalStages.value, 10) || 1);
+             boss.activeFormIndex = Math.max(0, calcActiveFormSelect.selectedIndex);
+             boss.forms = [];
+             const formEntries = formsListContainer.querySelectorAll('.form-entry');
+             formEntries.forEach((entry, index) => {
+                 const nameInput = entry.querySelector('.form-name'); const hpInput = entry.querySelector('.form-hp');
+                 const acInput = entry.querySelector('.form-ac'); const resInput = entry.querySelector('.form-res');
+                 if (nameInput && hpInput && acInput && resInput) {
+                     boss.forms.push({ name: nameInput.value.trim() || `Form ${index + 1}`, hpMultiplier: Math.max(0.01, parseFloatInput(hpInput.value)), acAdder: parseFloatInput(acInput.value), resAdder: parseFloatInput(resInput.value) });
+                 }
+             });
+             if (boss.forms.length === 0) { boss.forms.push({ name: 'Default', hpMultiplier: 1, acAdder: 0, resAdder: 0 }); boss.activeFormIndex = 0; }
+             boss.activeFormIndex = Math.min(boss.activeFormIndex, boss.forms.length - 1);
+             const derivedStats = calculateDerivedStats(boss);
+             boss.currentHp = Math.min(boss.currentHp, derivedStats.maxHp);
+             boss.currentStage = Math.min(boss.currentStage, boss.totalStages);
+             updateCalculatorDisplay(boss);
+             if (writeToStorage && activeBossId) { saveDataToStorage(); }
+         }
+
+        // --- Calculator Modal ---
+        // *** USER PROVIDED FUNCTION ***
+        function openBossCalculator(bossId, sagaId, template = null) {
+            let bossData;
+            if (bossId && sagaId) {
+                bossData = getBossById(bossId, sagaId);
+                if (!bossData) {
+                    console.error(`Boss ${bossId} not found in saga ${sagaId}`);
+                    alert("Error: Could not find the specified boss data.");
+                    return;
+                }
+                activeBossId = bossId;
+                activeSagaId = sagaId;
+                delete window.newBossTemplate;
+                delete window.newBossTemplateSagaId;
+            } else if (template && sagaId) {
+                bossData = template;
+                activeBossId = null;
+                activeSagaId = sagaId;
+                window.newBossTemplate = template;
+                window.newBossTemplateSagaId = sagaId;
+            } else {
+                console.error("Cannot open calculator without boss/saga context or template.");
+                alert("An internal error occurred trying to open the boss details.");
+                return;
+            }
+
+            renderCalculator(bossData);
+
+            if (calculatorModalOverlay) {
+                calculatorModalOverlay.style.display = 'flex';
+                requestAnimationFrame(() => {
+                    calculatorModalOverlay.classList.remove('closing');
+                    calculatorModalOverlay.classList.add('visible');
+                });
+            }
+        }
+
+        // *** USER PROVIDED FUNCTION ***
+        function closeCalculatorModal() {
+            // Only clear state if the modal was actually visible before starting to close
+            if (calculatorModalOverlay && calculatorModalOverlay.classList.contains('visible')) {
+                if (window.newBossTemplate) {
+                    console.log("Closing potentially unsaved new boss template.");
+                    delete window.newBossTemplate;
+                    delete window.newBossTemplateSagaId;
+                }
+                activeBossId = null; // Clear active boss context when closing
+
+                calculatorModalOverlay.classList.add('closing');
+                calculatorModalOverlay.classList.remove('visible');
+
+                setTimeout(() => {
+                    calculatorModalOverlay.style.display = 'none';
+                    calculatorModalOverlay.classList.remove('closing');
+                }, MODAL_ANIMATION_DURATION);
+            }
+            // If it wasn't visible, do nothing or just ensure it's hidden
+            else if (calculatorModalOverlay && !calculatorModalOverlay.classList.contains('closing')) {
+                 calculatorModalOverlay.style.display = 'none';
+            }
+        }
+
+
+        function renderCalculator(boss) {
+            if (!boss) return;
+            if (calcBossName) calcBossName.textContent = boss.name || 'Unnamed Boss';
+            if (calcCurrentStage) calcCurrentStage.textContent = boss.currentStage || 1;
+            if (calcTotalStages) calcTotalStages.textContent = boss.totalStages || 1;
+            updateCalculatorDisplay(boss);
+            if (calcDamageInput) calcDamageInput.value = '';
+            if (calcHealInput) calcHealInput.value = '';
+            if (calcBaseNameInput) calcBaseNameInput.value = boss.name || '';
+            if (calcBaseHpInput) calcBaseHpInput.value = boss.baseMaxHp || 0;
+            if (calcBaseAcInput) calcBaseAcInput.value = boss.baseArmorClass || 0;
+            if (calcBaseResInput) calcBaseResInput.value = boss.baseTrueResistance || 0;
+            if (calcInputTotalStages) calcInputTotalStages.value = boss.totalStages || 1;
+            renderFormsList(boss);
+            updateActiveFormDropdown(boss);
+        }
+
+        function updateCalculatorDisplay(boss) {
+            if (!boss) return;
+            const derivedStats = calculateDerivedStats(boss);
+            const currentHp = boss.currentHp ?? 0;
+            const currentHpFormatted = formatNumber(currentHp);
+            const maxHpFormatted = formatNumber(derivedStats.maxHp);
+            const healthPercentage = derivedStats.maxHp > 0 ? Math.max(0, Math.min(100, (currentHp / derivedStats.maxHp) * 100)) : 0;
+            const healthBarText = `${currentHpFormatted} / ${maxHpFormatted}`;
+            if (calcCurrentHp) calcCurrentHp.textContent = currentHpFormatted;
+            if (calcMaxHp) calcMaxHp.textContent = maxHpFormatted;
+            if (calcHealthBarContainer) calcHealthBarContainer.title = healthBarText;
+            if (calcHealthBar) { calcHealthBar.style.width = `${healthPercentage}%`; calcHealthBar.textContent = healthPercentage > 15 ? healthBarText : ''; }
+            if (calcCurrentStage) calcCurrentStage.textContent = boss.currentStage || 1;
+            if (calcTotalStages) calcTotalStages.textContent = boss.totalStages || 1;
+            if (calcDamageLog) {
+                calcDamageLog.innerHTML = '';
+                if (Array.isArray(boss.damageLog) && boss.damageLog.length > 0) {
+                    boss.damageLog.forEach(entry => { const p = document.createElement('p'); p.textContent = entry; calcDamageLog.appendChild(p); });
+                } else { calcDamageLog.innerHTML = '<p class="italic text-sm text-gray-500">No recent activity.</p>'; }
+                calcDamageLog.scrollTop = 0;
+            }
+        }
+
+        // --- Damage & Heal Logic ---
+        function applyDamage() {
+            const boss = activeBossId ? getBossById(activeBossId, activeSagaId) : window.newBossTemplate;
+            if (!boss || !calcDamageInput) return;
+            const rawDamage = parseFloatInput(calcDamageInput.value);
+            if (rawDamage <= 0) return;
+            const derivedStats = calculateDerivedStats(boss);
+            const acValue = Math.max(1, derivedStats.ac);
+            const resistancePercent = Math.max(0, Math.min(100, derivedStats.res));
+            const damageAfterAC = rawDamage / acValue; // Original divisor logic
+            const reductionFactor = 1 - (resistancePercent / 100);
+            const finalDamage = Math.max(0, damageAfterAC * reductionFactor);
+            boss.currentHp -= finalDamage;
+            let stageAdvanced = false;
+            if (boss.currentHp <= 0) {
+                if (boss.currentStage < boss.totalStages) {
+                    boss.currentStage++;
+                    const newDerivedStats = calculateDerivedStats(boss);
+                    boss.currentHp = newDerivedStats.maxHp;
+                    stageAdvanced = true;
+                    logEvent(boss, `Advanced to Stage ${boss.currentStage}! HP restored.`);
+                } else {
+                    boss.currentHp = 0;
+                    logEvent(boss, `Defeated! (Reached 0 HP on final stage ${boss.currentStage})`);
+                }
+            }
+            if (!stageAdvanced && boss.currentHp >= 0) {
+                 const logEntry = `Took ${formatNumber(finalDamage)} damage (Raw: ${formatNumber(rawDamage)}, AC Div: ${formatNumber(derivedStats.ac)}, Res: ${formatNumber(resistancePercent)}%).`;
+                 logEvent(boss, logEntry);
+            }
+            flashHealthBar('red');
+            flashPage('red'); // Trigger page flash
+            calcDamageInput.value = '';
+            updateCalculatorDisplay(boss);
+            if (activeBossId) saveDataToStorage();
+        }
+
+        function applyHeal() {
+            const boss = activeBossId ? getBossById(activeBossId, activeSagaId) : window.newBossTemplate;
+             if (!boss || !calcHealInput) return;
+            const healPercent = parseFloatInput(calcHealInput.value);
+            if (healPercent <= 0) return;
+            const derivedStats = calculateDerivedStats(boss);
+            const actualHealAmount = derivedStats.maxHp * (healPercent / 100);
+            boss.currentHp = Math.min(derivedStats.maxHp, boss.currentHp + actualHealAmount);
+            logEvent(boss, `Healed for ${formatNumber(actualHealAmount)} (${healPercent}% of Max HP).`);
+            flashHealthBar('green');
+            flashPage('green'); // Trigger page flash
+            calcHealInput.value = '';
+            updateCalculatorDisplay(boss);
+            if (activeBossId) saveDataToStorage();
+        }
+
+        function logEvent(boss, message) {
+            if (!boss) return;
+            if (!Array.isArray(boss.damageLog)) { boss.damageLog = []; }
+            boss.damageLog.unshift(message);
+            if (boss.damageLog.length > 20) { boss.damageLog.pop(); }
+        }
+
+        function flashHealthBar(type) {
+            if (!calcHealthBarContainer) return;
+            const className = type === 'red' ? 'flash-red' : 'flash-green';
+            calcHealthBarContainer.classList.add(className);
+            setTimeout(() => { if (calcHealthBarContainer) calcHealthBarContainer.classList.remove(className); }, 500);
+        }
+
+        // *** USER PROVIDED FUNCTION ***
+        function flashPage(type) {
+            if (!calcLeftPage) return;
+            const className = type === 'red' ? 'flash-page-red' : 'flash-page-green';
+            calcLeftPage.classList.remove('flash-page-red', 'flash-page-green');
+            void calcLeftPage.offsetWidth; // Trigger reflow
+            calcLeftPage.classList.add(className);
+            calcLeftPage.addEventListener('animationend', () => {
+                calcLeftPage.classList.remove(className);
+            }, { once: true });
+        }
+
+
+         // --- Forms Logic ---
+         function renderFormsList(boss) {
+             if (!formsListContainer) return;
+             formsListContainer.innerHTML = '';
+             if (!boss || !Array.isArray(boss.forms)) { boss = boss || {}; boss.forms = []; }
+             boss.forms.forEach((form, index) => {
+                 const formDiv = document.createElement('div');
+                 formDiv.className = 'form-entry grid grid-cols-2 md:grid-cols-5 gap-2 items-center';
+                 formDiv.dataset.index = index;
+                 formDiv.innerHTML = `
+                     <div class="col-span-2 md:col-span-1"><label class="text-xs" for="form-name-${index}">Name:</label><input type="text" id="form-name-${index}" class="form-input form-name text-sm p-1" value="${form.name || ''}" placeholder="Form Name"></div>
+                     <div><label class="text-xs" for="form-hp-${index}">HP x:</label><input type="text" inputmode="decimal" id="form-hp-${index}" class="form-input form-hp text-sm p-1" value="${form.hpMultiplier ?? 1}" placeholder="1.0"></div>
+                     <div><label class="text-xs" for="form-ac-${index}">AC Div +:</label><input type="text" inputmode="decimal" id="form-ac-${index}" class="form-input form-ac text-sm p-1" value="${form.acAdder ?? 0}" placeholder="0"></div>
+                     <div><label class="text-xs" for="form-res-${index}">Res% +:</label><input type="text" inputmode="decimal" id="form-res-${index}" class="form-input form-res text-sm p-1" value="${form.resAdder ?? 0}" placeholder="0"></div>
+                     <button class="delete-form-btn modal-button text-xs p-1 self-end" data-index="${index}" aria-label="Delete Form">&times;</button>`;
+                 formsListContainer.appendChild(formDiv);
+             });
+         }
+         function updateActiveFormDropdown(boss) {
+             if (!calcActiveFormSelect) return;
+             calcActiveFormSelect.innerHTML = '';
+             if (!boss || !Array.isArray(boss.forms)) { boss = boss || {}; boss.forms = []; }
+             boss.forms.forEach((form, index) => {
+                 const option = document.createElement('option');
+                 option.value = index; option.textContent = form.name || `Form ${index + 1}`;
+                 if (index === boss.activeFormIndex) { option.selected = true; }
+                 calcActiveFormSelect.appendChild(option);
+             });
+         }
+         function addFormEntry() {
+             const boss = activeBossId ? getBossById(activeBossId, activeSagaId) : window.newBossTemplate; if (!boss) return;
+             if (!Array.isArray(boss.forms)) { boss.forms = []; }
+             const newForm = { name: `Form ${boss.forms.length + 1}`, hpMultiplier: 1, acAdder: 0, resAdder: 0 };
+             boss.forms.push(newForm); renderFormsList(boss); updateActiveFormDropdown(boss); autoSaveCurrentBossData(false);
+         }
+         function handleDeleteForm(event) {
+             const boss = activeBossId ? getBossById(activeBossId, activeSagaId) : window.newBossTemplate; if (!boss) return;
+             const indexToDelete = parseInt(event.target.dataset.index, 10);
+             if (!isNaN(indexToDelete) && Array.isArray(boss.forms) && indexToDelete >= 0 && indexToDelete < boss.forms.length) {
+                 boss.forms.splice(indexToDelete, 1);
+                 if (boss.forms.length === 0) { boss.forms.push({ name: 'Default', hpMultiplier: 1, acAdder: 0, resAdder: 0 }); }
+                 boss.activeFormIndex = Math.min(Math.max(0, boss.activeFormIndex), boss.forms.length - 1);
+                 if(boss.activeFormIndex >= boss.forms.length){ boss.activeFormIndex = 0; }
+                 renderFormsList(boss); updateActiveFormDropdown(boss); autoSaveCurrentBossData(false);
+             } else { console.error("Invalid index for form deletion:", indexToDelete); }
+         }
+         function handleFormChange() {
+             const boss = activeBossId ? getBossById(activeBossId, activeSagaId) : window.newBossTemplate; if (!boss || !calcActiveFormSelect) return;
+             boss.activeFormIndex = calcActiveFormSelect.selectedIndex; autoSaveCurrentBossData(false);
+         }
+
+         // --- Import / Export ---
+         function exportData() {
+             try {
+                 const dataToExport = { sagas: sagas, storedBosses: storedBosses };
+                 const jsonString = JSON.stringify(dataToExport, null, 2);
+                 const blob = new Blob([jsonString], { type: 'application/json' });
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a'); a.href = url; a.download = `dnd-boss-tracker-data_${new Date().toISOString().slice(0,10)}.json`;
+                 document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+             } catch (e) { console.error("Error exporting data:", e); alert("Error exporting data. See console for details."); }
+         }
+         function importData(event) {
+             const file = event.target.files[0]; if (!file) return;
+             if (!confirm('Importing data will REPLACE all current Sagas, Bosses, and Storage. This cannot be undone. Are you sure?')) { event.target.value = null; return; }
+             const reader = new FileReader();
+             reader.onload = (e) => {
+                 try {
+                     const importedData = JSON.parse(e.target.result);
+                     if (!importedData || (!Array.isArray(importedData.sagas) && !Array.isArray(importedData.storedBosses))) { throw new Error("Invalid file format. Expected 'sagas' array and/or 'storedBosses' array."); }
+                     sagas = importedData.sagas || []; storedBosses = importedData.storedBosses || [];
+                     sagas.forEach(saga => {
+                         saga.id = saga.id || `saga_${Date.now()}_${Math.random().toString(16).slice(2)}`; saga.name = saga.name || 'Unnamed Saga'; saga.color = saga.color || getNextBookColor();
+                         saga.bosses = Array.isArray(saga.bosses) ? saga.bosses : []; saga.bosses.forEach(boss => migrateBossData(boss));
+                     });
+                     storedBosses.forEach(boss => migrateBossData(boss));
+                     saveDataToStorage(); renderSagaShelf(); showView('saga'); alert('Data imported successfully!');
+                 } catch (error) { console.error('Error importing data:', error); alert(`Error importing data: ${error.message}`); }
+                 finally { event.target.value = null; }
+             };
+             reader.onerror = () => { alert('Error reading file.'); event.target.value = null; };
+             reader.readAsText(file);
+         }
+
+        // --- Start the App ---
+        window.onload = init;
+
+    </script>
+
+</html>
+</body>
